@@ -164,6 +164,7 @@ void VirtualMachine::execute(INSN_TYPE opcode) {
             break;
         }
         case JMP: {
+            pc += INSN_SIZE;
             DATA_TYPE target = program.at(pc);
             pc = target - 1;
             pc += DATA_SIZE - INSN_SIZE;
