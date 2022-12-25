@@ -16,11 +16,11 @@ void VirtualMachine::compile(std::string path, std::string output) {
 
     string line;
     while (getline(source, line)) {
-        if (line.empty()) continue;         // ignore empty lines
-        if (line[0] == '#') continue;       // ignore lines starting with # for comments
-
+        if (line.empty() || line[0] == '#') // ignore empty lines and ignore lines starting with # for comments
+            continue;         
+        
         string opcode_str;
-        INSN_TYPE arg = 0;
+        DATA_TYPE arg = 0;
         size_t space_pos = line.find(' ');
         if (space_pos == string::npos)
             opcode_str = line;
@@ -32,10 +32,9 @@ void VirtualMachine::compile(std::string path, std::string output) {
         bool found = false;
         for (auto& insn : Instructions) {
             if (opcode_str == insn.sz) {
-                INSN_TYPE instr[2];
-                instr[0] = insn.opcode;
-                instr[1] = arg;
-                binary.write(reinterpret_cast<char*>(&instr), INSN_SIZE * (insn.has_arg ? 2 : 1));
+                binary.write(reinterpret_cast<char*>(&insn.opcode), INSN_SIZE);
+                if (insn.has_arg)
+                    binary.write(reinterpret_cast<char*>(&arg), DATA_SIZE);
                 found = true;
                 break;
             }
@@ -57,15 +56,16 @@ void VirtualMachine::decompile(std::string path, std::string output) {
     if (!in.good() || !out.good())
         return;
 
-    INSN_TYPE instr[2];
+    INSN_TYPE instr;
     while (in.read(reinterpret_cast<char*>(&instr), INSN_SIZE)) {
         bool found = false;
         for (auto& insn : Instructions) {
-            if (instr[0] == insn.opcode) {
+            if (instr == insn.opcode) {
                 out << insn.sz;
                 if (insn.has_arg) {
-                    in.read(reinterpret_cast<char*>(&instr[1]), INSN_SIZE);
-                    out << " " << instr[1] << endl;
+                    DATA_TYPE arg;
+                    in.read(reinterpret_cast<char*>(&arg), DATA_SIZE);
+                    out << " " << arg << endl;
                 } else
                     out << endl;
                 found = true;
@@ -88,8 +88,10 @@ void VirtualMachine::execute(INSN_TYPE opcode) {
             exit(0);
         }
         case PUSH: {
-            INSN_TYPE value = program.at(++pc);
+            pc += INSN_SIZE;
+            DATA_TYPE value = program.at(pc);
             stck.push(value);
+            pc += DATA_SIZE - INSN_SIZE;
             break;
         }
         case POP: {
@@ -98,83 +100,85 @@ void VirtualMachine::execute(INSN_TYPE opcode) {
             break;
         }
         case EQU: {
-            INSN_TYPE a = stck.top();
+            DATA_TYPE a = stck.top();
             stck.pop();
-            INSN_TYPE b = stck.top();
+            DATA_TYPE b = stck.top();
             stck.pop();
             stck.push(a == b ? 1 : 0);
             break;
         }
         case NEQU: {
-            INSN_TYPE a = stck.top();
+            DATA_TYPE a = stck.top();
             stck.pop();
-            INSN_TYPE b = stck.top();
+            DATA_TYPE b = stck.top();
             stck.pop();
             stck.push(a != b ? 1 : 0);
             break;
         }
         case GT: {
-            INSN_TYPE a = stck.top();
+            DATA_TYPE a = stck.top();
             stck.pop();
-            INSN_TYPE b = stck.top();
+            DATA_TYPE b = stck.top();
             stck.pop();
             stck.push(a >= b ? 1 : 0);
             break;
         }
         case LT: {
-            INSN_TYPE a = stck.top();
+            DATA_TYPE a = stck.top();
             stck.pop();
-            INSN_TYPE b = stck.top();
+            DATA_TYPE b = stck.top();
             stck.pop();
             stck.push(a <= b ? 1 : 0);
             break;
         }
         case ADD: {
-            INSN_TYPE a = stck.top();
+            DATA_TYPE a = stck.top();
             stck.pop();
-            INSN_TYPE b = stck.top();
+            DATA_TYPE b = stck.top();
             stck.pop();
             stck.push(a + b);
             break;
         }
         case SUB: {
-            INSN_TYPE a = stck.top();
+            DATA_TYPE a = stck.top();
             stck.pop();
-            INSN_TYPE b = stck.top();
+            DATA_TYPE b = stck.top();
             stck.pop();
             stck.push(b - a);
             break;
         }
         case MUL: {
-            INSN_TYPE a = stck.top();
+            DATA_TYPE a = stck.top();
             stck.pop();
-            INSN_TYPE b = stck.top();
+            DATA_TYPE b = stck.top();
             stck.pop();
             stck.push(a * b);
             break;
         }
         case DIV: {
-            INSN_TYPE a = stck.top();
+            DATA_TYPE a = stck.top();
             stck.pop();
-            INSN_TYPE b = stck.top();
+            DATA_TYPE b = stck.top();
             stck.pop();
             stck.push(b / a);
             break;
         }
         case JMP: {
-            INSN_TYPE target = program.at(++pc);
+            DATA_TYPE target = program.at(pc);
             pc = target - 1;
+            pc += DATA_SIZE - INSN_SIZE;
             break;
         }
         case JMPZ: {
-            INSN_TYPE target = program.at(++pc);
-            if (stck.top() == 0) {
+            pc += INSN_SIZE;
+            DATA_TYPE target = program.at(pc);
+            if (stck.top() == 0)
                 pc = target - 1;
-            }
+            pc += DATA_SIZE - INSN_SIZE;
             break;
         }
         case PRINT: {
-            cout << stck.top() << endl;
+            cout << "PRINT " << stck.top() << endl;
             break;
         }
         default: {
@@ -192,7 +196,7 @@ void VirtualMachine::save(std::string path) {
     std::ofstream out(path, std::ios::binary);
     if (!out.good())
         return;
-    out.write(reinterpret_cast<char*>(&program.at(0)), program.size() * INSN_SIZE);
+    out.write(reinterpret_cast<char*>(&program.at(0)), program.size());
     out.close();
 }
 void VirtualMachine::load(std::string path) {
@@ -208,21 +212,18 @@ void VirtualMachine::load(std::string path) {
     in.seekg(0, std::ios::beg);
 
     program.clear();
-    program.resize(sz / INSN_SIZE);
+    program.resize(sz);
 
     in.read(reinterpret_cast<char*>(&program.at(0)), sz);
     in.close();
-
-    program.shrink_to_fit();
 }
 void VirtualMachine::run() {
     printf("running program...\n\n");
     running = 1;
 
     while (running) {
-        INSN_TYPE opcode = program.at(pc);
-        execute(opcode);
-        pc++;
+        execute(program.at(pc));
+        pc += INSN_SIZE;
     }
 }
 void VirtualMachine::stop() {

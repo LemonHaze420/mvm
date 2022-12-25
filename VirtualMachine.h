@@ -1,7 +1,10 @@
 #pragma once
 
-#define INSN_TYPE   int
-#define INSN_SIZE   (sizeof(int))
+#define INSN_TYPE   char
+#define INSN_SIZE   (sizeof(char))
+
+#define DATA_TYPE   int
+#define DATA_SIZE   (sizeof(int))
 
 #include <stack>
 #include <vector>
@@ -19,9 +22,9 @@ public:
 protected:
     char running = 0;
 
-    std::stack<INSN_TYPE> stck;
-    INSN_TYPE pc = 0;
-    INSN_TYPE reg = 0;
+    std::stack<DATA_TYPE> stck;
+    DATA_TYPE pc = 0;
+    DATA_TYPE reg = 0;
 
     enum OpCode {
         HALT,
@@ -44,10 +47,10 @@ protected:
     struct Instruction {
         OpCode opcode;
         std::string sz;
-        INSN_TYPE has_arg;
+        char has_arg;
     };
-    #define INS(o,a) { o, #o, a }
 
+    #define INS(o,a) { o, #o, a }
     std::vector<Instruction> Instructions = {
         INS(PUSH, 1),
         INS(POP, 0),
@@ -69,10 +72,9 @@ protected:
         INS(HALT, 0),
         INS(NOP, 0),
     };
-    
-    vector<INSN_TYPE> program = {
-        HALT
-    };
+    #undef INS
+
+    vector<char> program = {};
 
 public:
     void compile(std::string path, std::string output);
