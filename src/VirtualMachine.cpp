@@ -120,7 +120,7 @@ void VirtualMachine::execute(INSN_TYPE opcode) {
             stck.pop();
             DATA_TYPE b = stck.top();
             stck.pop();
-            stck.push(a >= b ? 1 : 0);
+            stck.push(a > b ? 1 : 0);
             break;
         }
         case LT: {
@@ -128,7 +128,61 @@ void VirtualMachine::execute(INSN_TYPE opcode) {
             stck.pop();
             DATA_TYPE b = stck.top();
             stck.pop();
+            stck.push(a < b ? 1 : 0);
+            break;
+        }
+        case GTEQ: {
+            DATA_TYPE a = stck.top();
+            stck.pop();
+            DATA_TYPE b = stck.top();
+            stck.pop();
+            stck.push(a >= b ? 1 : 0);
+            break;
+        }
+        case LTEQ: {
+            DATA_TYPE a = stck.top();
+            stck.pop();
+            DATA_TYPE b = stck.top();
+            stck.pop();
             stck.push(a <= b ? 1 : 0);
+            break;
+        }
+        case XOR: {
+            DATA_TYPE a = stck.top();
+            stck.pop();
+            DATA_TYPE b = stck.top();
+            stck.pop();
+            stck.push(a ^ b);
+            break;
+        }
+        case OR: {
+            DATA_TYPE a = stck.top();
+            stck.pop();
+            DATA_TYPE b = stck.top();
+            stck.pop();
+            stck.push(a | b);
+            break;
+        }
+        case MOD: {
+            DATA_TYPE a = stck.top();
+            stck.pop();
+            DATA_TYPE b = stck.top();
+            stck.pop();
+            stck.push(a % b);
+            break;
+        }
+        case NEG: {
+            DATA_TYPE v = ~stck.top();
+            stck.pop();
+            stck.push(v);
+            break;
+        }
+        case AND: {
+            DATA_TYPE a = stck.top();
+            stck.pop();
+            DATA_TYPE b = stck.top();
+            stck.pop();
+            stck.push(a & b);
             break;
         }
         case ADD: {

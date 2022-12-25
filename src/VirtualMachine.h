@@ -27,21 +27,35 @@ protected:
     DATA_TYPE reg = 0;
 
     enum OpCode {
-        HALT,
+        NOP,
+        
         PUSH,
         POP,
+
         EQU,
         NEQU,
         GT,
-        LT,
+        GTEQ,
+        LT, 
+        LTEQ,
+
         ADD,
         SUB,
         MUL,
         DIV,
+
+        XOR,
+        OR, 
+        MOD,
+        NEG,
+        AND,
+
         JMP,
         JMPZ,
+
         PRINT,
-        NOP
+
+        HALT,
     };
 
     struct Instruction {
@@ -52,25 +66,34 @@ protected:
 
     #define INS(o,a) { o, #o, a }
     std::vector<Instruction> Instructions = {
+        INS(NOP, 0),
+
         INS(PUSH, 1),
         INS(POP, 0),
         
         INS(EQU, 0),
         INS(NEQU, 0),
         INS(GT, 0),
+        INS(GTEQ, 0),
         INS(LT, 0),
-
+        INS(LTEQ, 0),
 
         INS(ADD, 0),
         INS(SUB, 0),
         INS(MUL, 0),
         INS(DIV, 0),
+
+        INS(XOR,0),
+        INS(OR, 0),
+        INS(NEG,0),
+        INS(AND,0),
+
         INS(JMP, 1),
         INS(JMPZ, 1),
+
         INS(PRINT, 0),
 
         INS(HALT, 0),
-        INS(NOP, 0),
     };
     #undef INS
 
