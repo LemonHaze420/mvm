@@ -3,8 +3,8 @@
 #define INSN_TYPE   char
 #define INSN_SIZE   (sizeof(char))
 
-#define DATA_TYPE   int
-#define DATA_SIZE   (sizeof(int))
+#define DATA_TYPE   short
+#define DATA_SIZE   (sizeof(short))
 
 #include <stack>
 #include <vector>
@@ -61,7 +61,7 @@ protected:
     struct Instruction {
         OpCode opcode;
         std::string sz;
-        char has_arg;
+        char num_args;
     };
 
     #define INS(o,a) { o, #o, a }

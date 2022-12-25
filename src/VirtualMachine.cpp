@@ -33,8 +33,8 @@ void VirtualMachine::compile(std::string path, std::string output) {
         for (auto& insn : Instructions) {
             if (opcode_str == insn.sz) {
                 binary.write(reinterpret_cast<char*>(&insn.opcode), INSN_SIZE);
-                if (insn.has_arg)
-                    binary.write(reinterpret_cast<char*>(&arg), DATA_SIZE);
+                if (insn.num_args)
+                    binary.write(reinterpret_cast<char*>(&arg), DATA_SIZE * insn.num_args);
                 found = true;
                 break;
             }
@@ -62,12 +62,12 @@ void VirtualMachine::decompile(std::string path, std::string output) {
         for (auto& insn : Instructions) {
             if (instr == insn.opcode) {
                 out << insn.sz;
-                if (insn.has_arg) {
-                    DATA_TYPE arg;
+                DATA_TYPE arg;
+                for (int i = 0; i < insn.num_args; ++i) {
                     in.read(reinterpret_cast<char*>(&arg), DATA_SIZE);
-                    out << " " << arg << endl;
-                } else
-                    out << endl;
+                    out << " " << arg;
+                }
+                out << endl;
                 found = true;
                 break;
             }
