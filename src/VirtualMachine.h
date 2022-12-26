@@ -101,11 +101,12 @@ protected:
 
 public:
     void compile(std::string path, std::string output);
+    void translate_to_x64_asm(std::string path, std::string output);
     void decompile(std::string path, std::string output);
     void execute(INSN_TYPE opcode);
     void save(std::string path);
     void load(std::string path);
 
-    void run();
+    void start();
     void stop();
 };

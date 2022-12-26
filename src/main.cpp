@@ -7,9 +7,10 @@ int main(int argc, char **argp) {
     VirtualMachine vm;
     if (strstr(argp[1], "-t")) {
         vm.compile("program.s", "program.bin");
+        vm.translate_to_x64_asm("program.bin", "program.x64.s");
         vm.decompile("program.bin", "program.bin.dec");
         vm.load("program.bin");
-        vm.run();
+        vm.start();
         return 1;
     }
 
@@ -27,7 +28,7 @@ int main(int argc, char **argp) {
             vm.decompile(in, out);
     } else {
         vm.load(in);
-        vm.run();
+        vm.start();
     }
     return 0;
 }

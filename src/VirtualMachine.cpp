@@ -16,7 +16,7 @@ void VirtualMachine::compile(std::string path, std::string output) {
 
     string line;
     while (getline(source, line)) {
-        if (line.empty() || line[0] == '#') // ignore empty lines and ignore lines starting with # for comments
+        if (line.empty() || line[0] == '#' || line.find("#") != std::string::npos) // ignore empty lines and ignore lines starting with (or containing) # for comments
             continue;         
         
         string opcode_str;
@@ -77,6 +77,194 @@ void VirtualMachine::decompile(std::string path, std::string output) {
     }
     printf("decompiled '%s'\n", path.c_str());
 }
+
+void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) {
+    std::ifstream in(path, std::ios::binary);
+    std::ofstream out(output);
+
+    if (!in.good() || !out.good())
+        return;
+
+    out << ".section .text\n";
+    out << ".globl _start\n";
+    out << "_start:\n";
+
+    INSN_TYPE instr;
+    DATA_TYPE value;
+    #define READ()  in.read(reinterpret_cast<char*>(&value), DATA_SIZE)
+    while (in.read(reinterpret_cast<char*>(&instr), INSN_SIZE)) {
+        switch (instr) {
+            case PUSH:
+                READ();
+                out << "    movabs $" << value << ", %rax\n";
+                out << "    push %rax\n";
+                break;
+            case POP:
+                out << "    pop %rax\n";
+                break;
+            case ADD: {
+                out << "    pop %rbx\n";
+                out << "    pop %rax\n";
+                out << "    add %rbx, %rax\n";
+                out << "    push %rax\n";
+                break;
+            }
+            case SUB:
+                out << "    pop %rbx\n";
+                out << "    pop %rax\n";
+                out << "    sub %rax, %rbx\n";
+                out << "    push %rbx\n";
+                break;
+            case XOR: {
+                out << "    pop %rax\n";
+                out << "    pop %rbx\n";
+                out << "    xor %rax, %rbx\n";
+                out << "    push %rax\n";
+                break;
+            }
+            case AND: {
+                out << "    pop %rax\n";
+                out << "    pop %rbx\n";
+                out << "    and %rax, %rbx\n";
+                out << "    push %rax\n";
+                break;
+            }
+            case OR: {
+                out << "    pop %rax\n";
+                out << "    pop %rbx\n";
+                out << "    or %rax, %rbx\n";
+                out << "    push %rax\n";
+                break;
+            }
+            case NEG: {
+                out << "    pop %rax\n";
+                out << "    neg %rax\n";
+                out << "    push %rax\n";
+                break;
+            }
+            case MUL:
+                out << "    pop %rax\n";
+                out << "    pop %rcx\n";
+                out << "    imul %rcx, %rax\n";
+                out << "    push %rax\n";
+                break;
+            case DIV:
+                out << "    pop %rax\n";
+                out << "    pop %rcx\n";
+                out << "    xor %rdx, %rdx\n";  // Clear rdx to zero
+                out << "    div %rcx\n";
+                out << "    push %rax\n";
+                break;
+            case MOD:
+                out << "    pop %rax\n";
+                out << "    pop %rcx\n";
+                out << "    xor %rdx, %rdx\n";  // Clear rdx to zero
+                out << "    div %rcx\n";
+                out << "    push %rdx\n";
+                break;
+            case EQU:
+                out << "    pop %rax\n";
+                out << "    pop %rbx\n";
+                out << "    cmp %rax, %rbx\n";
+                out << "    sete %al\n";
+                out << "    movsx %al, %rax\n";
+                out << "    push %rax\n";
+                break;
+            case NEQU:
+                out << "    pop %rax\n";
+                out << "    pop %rbx\n";
+                out << "    cmp %rax, %rbx\n";
+                out << "    setne %al\n";
+                out << "    movsx %al, %rax\n";
+                out << "    push %rax\n";
+                break;
+            case LT: {
+                out << "    pop %rbx\n";
+                out << "    pop %rax\n";
+                out << "    cmp %rax, %rbx\n";
+                out << "    setl %al\n";
+                out << "    and $1, %al\n";
+                out << "    push %rax\n";
+                break;
+            }
+            case LTEQ: {
+                out << "    pop %rax\n";
+                out << "    pop %rbx\n";
+                out << "    cmp %bx, %ax\n";
+                out << "    setle %al\n";
+                out << "    movzbl %al, %eax\n";
+                out << "    push %rax\n";
+                break;
+            }
+            case GT:
+                out << "    pop %rbx\n";
+                out << "    pop %rax\n";
+                out << "    cmp %rax, %rbx\n";
+                out << "    setg %al\n";
+                out << "    movzb %rax, %al\n";
+                out << "    push %rax\n";
+                break;
+            case GTEQ:
+                out << "    pop %rbx\n";
+                out << "    pop %rax\n";
+                out << "    cmp %rax, %rbx\n";
+                out << "    setge %al\n";
+                out << "    movzb %rax, %al\n";
+                out << "    push %rax\n";
+                break;
+            case JMP: {
+                READ();
+                out << "    jmp .L" << value << endl;
+                break;
+            }
+            case JMPZ: {
+                READ();
+                out << "    pop %rax\n";
+                out << "    cmp $0, %rax\n";
+                out << "    je .L" << value << endl;
+                break;
+            }
+            case HALT: {
+                out << "    mov $60, %rax\n";
+                out << "    xor %rdi, %rdi\n";
+                out << "    syscall\n";
+                break;
+            }
+            case PRINT: {
+                // print out the value
+                out << "    pop %rax\n";
+                out << "    push %rax\n";
+                out << "    mov $1, %rax\n";
+                out << "    mov $1, %rdi\n";
+                out << "    mov %rsp, %rsi\n";
+                out << "    mov $1, %rdx\n";
+                out << "    syscall\n";
+                out << "    add $8, %rsp\n";
+
+                // print out a newline
+                out << "    push $0x0d\n";
+                out << "    mov $1, % rax\n";
+                out << "    mov $1, % rdi\n";
+                out << "    mov% rsp, % rsi\n";
+                out << "    mov $1, % rdx\n";
+                out << "    syscall\n";
+                out << "    add $8, %rsp\n";
+                break;
+            }
+            case NOP: {
+                out << "    nop\n";
+                break;
+            }
+        }
+    }
+
+    // Prepare the data segment
+    out << ".section .rodata\n";
+    out << "\n";
+
+    out << "\n";
+}
+
 void VirtualMachine::execute(INSN_TYPE opcode) {
     switch (opcode) {
         case NOP: {
@@ -251,6 +439,7 @@ void VirtualMachine::save(std::string path) {
     std::ofstream out(path, std::ios::binary);
     if (!out.good())
         return;
+
     out.write(reinterpret_cast<char*>(&program.at(0)), program.size());
     out.close();
 }
@@ -272,8 +461,7 @@ void VirtualMachine::load(std::string path) {
     in.read(reinterpret_cast<char*>(&program.at(0)), sz);
     in.close();
 }
-void VirtualMachine::run() {
-    printf("running program...\n\n");
+void VirtualMachine::start() {
     running = 1;
 
     while (running) {
