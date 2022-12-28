@@ -1,7 +1,6 @@
-#include <iostream>
 #include <fstream>
 #include <cstdint>
-#include <string>
+#include <unordered_map>
 
 #include "VirtualMachine.h"
 
@@ -14,11 +13,62 @@ void VirtualMachine::compile(std::string path, std::string output) {
     if (!source.good() || !binary.good())
         return;
 
+    // First pass: build list of label names and their locations
+    std::unordered_map<std::string, size_t> label_offsets;
+    size_t bytecode_size = 0;
     string line;
     while (getline(source, line)) {
-        if (line.empty() || line[0] == '#' || line.find("#") != std::string::npos) // ignore empty lines and ignore lines starting with (or containing) # for comments
-            continue;         
-        
+        if (line.empty() || line[0] == '#' || line.find("#") != std::string::npos) 
+            continue;
+
+        if (line[line.size() - 1] == ':') {
+            // This is a label definition
+            std::string label_name = line.substr(0, line.size() - 1);
+            if (label_offsets.count(label_name) > 0) {
+                LOG << "Duplicate label name: " << label_name << endl;
+                return;
+            }
+            label_offsets[label_name] = bytecode_size;
+        }
+        else {
+            // This is an instruction
+            string opcode_str;
+            size_t space_pos = line.find(' ');
+            if (space_pos == string::npos)
+                opcode_str = line;
+            else
+                opcode_str = line.substr(0, space_pos);
+
+            bool found = false;
+            for (auto& insn : instruction_definitions) {
+                if (opcode_str == insn.sz) {
+                    bytecode_size += INSN_SIZE + DATA_SIZE * insn.num_args;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                LOG << "Invalid opcode: " << opcode_str << endl;
+                return;
+            }
+        }
+    }
+
+    // Second pass: generate bytecode
+    source.clear();
+    source.seekg(0);
+    int label_count = 0;
+    while (getline(source, line)) {
+        if (line.empty() || line[0] == '#' || line.find("#") != std::string::npos)
+            continue;
+
+        if (line[line.size() - 1] == ':') { // Label definition
+            string label_name = line.substr(0, line.size() - 1);
+            label_offsets[label_name] = binary.tellp();
+            continue;
+        }
+
         string opcode_str;
         DATA_TYPE arg = 0;
         size_t space_pos = line.find(' ');
@@ -26,26 +76,33 @@ void VirtualMachine::compile(std::string path, std::string output) {
             opcode_str = line;
         else {
             opcode_str = line.substr(0, space_pos);
-            arg = stoi(line.substr(space_pos + 1));
+            if (isdigit(line[space_pos + 1]))
+                arg = stoi(line.substr(space_pos + 1));
+            else { // Label reference
+                string label_name = line.substr(space_pos + 1);
+                if (label_offsets.find(label_name) == label_offsets.end()) {
+                    LOG << "Invalid label name: " << label_name << endl;
+                    return;
+                }
+                arg = label_offsets[label_name];
+            }
         }
 
         bool found = false;
-        for (auto& insn : Instructions) {
+        for (auto& insn : instruction_definitions) {
             if (opcode_str == insn.sz) {
                 binary.write(reinterpret_cast<char*>(&insn.opcode), INSN_SIZE);
-                if (insn.num_args)
-                    binary.write(reinterpret_cast<char*>(&arg), DATA_SIZE * insn.num_args);
+                binary.write(reinterpret_cast<char*>(&arg), DATA_SIZE * insn.num_args);
                 found = true;
                 break;
             }
         }
 
         if (!found) {
-            cout << "Invalid opcode: " << opcode_str << endl;
+            LOG << "Invalid opcode: " << opcode_str << endl;
             return;
         }
     }
-    printf("compiled '%s'\n", path.c_str());
 }
 void VirtualMachine::decompile(std::string path, std::string output) {
     if (path.empty() || output.empty())
@@ -59,7 +116,7 @@ void VirtualMachine::decompile(std::string path, std::string output) {
     INSN_TYPE instr;
     while (in.read(reinterpret_cast<char*>(&instr), INSN_SIZE)) {
         bool found = false;
-        for (auto& insn : Instructions) {
+        for (auto& insn : instruction_definitions) {
             if (instr == insn.opcode) {
                 out << insn.sz;
                 DATA_TYPE arg;
@@ -73,9 +130,8 @@ void VirtualMachine::decompile(std::string path, std::string output) {
             }
         }
         if (!found)
-            out << "INVALID OPCODE" << endl;
+            out << "INVALID OPCODE\n";
     }
-    printf("decompiled '%s'\n", path.c_str());
 }
 
 void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) {
@@ -232,6 +288,7 @@ void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) 
             }
             case PRINT: {
                 // print out the value
+                out << "    add $0x30, %rax\n"; // shift into ASCII integer characters
                 out << "    pop %rax\n";
                 out << "    push %rax\n";
                 out << "    mov $1, %rax\n";
@@ -243,10 +300,10 @@ void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) 
 
                 // print out a newline
                 out << "    push $0x0d\n";
-                out << "    mov $1, % rax\n";
-                out << "    mov $1, % rdi\n";
-                out << "    mov% rsp, % rsi\n";
-                out << "    mov $1, % rdx\n";
+                out << "    mov $1, %rax\n";
+                out << "    mov $1, %rdi\n";
+                out << "    mov% rsp, %rsi\n";
+                out << "    mov $1, %rdx\n";
                 out << "    syscall\n";
                 out << "    add $8, %rsp\n";
                 break;
@@ -257,6 +314,7 @@ void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) 
             }
         }
     }
+    #undef READ()
 
     // Prepare the data segment
     out << ".section .rodata\n";
@@ -267,17 +325,24 @@ void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) 
 
 void VirtualMachine::execute(INSN_TYPE opcode) {
     switch (opcode) {
+        case LOAD: {
+            stck.push(reg);
+            break;
+        }
         case NOP: {
             break;
         }
         case HALT: {
-            cout << "HALT" << endl;
+            LOG << "HALT\n";
             running = 0;
-            exit(0);
+#           ifndef _DEBUG
+                exit(0);
+#           endif
+            break;
         }
         case PUSH: {
             pc += INSN_SIZE;
-            DATA_TYPE value = program.at(pc);
+            DATA_TYPE value = *reinterpret_cast<DATA_TYPE*>(&program.at(pc));
             stck.push(value);
             pc += DATA_SIZE - INSN_SIZE;
             break;
@@ -407,14 +472,14 @@ void VirtualMachine::execute(INSN_TYPE opcode) {
         }
         case JMP: {
             pc += INSN_SIZE;
-            DATA_TYPE target = program.at(pc);
+            DATA_TYPE target = *reinterpret_cast<DATA_TYPE*>(&program.at(pc)) - 1;
             pc = target - 1;
             pc += DATA_SIZE - INSN_SIZE;
             break;
         }
         case JMPZ: {
             pc += INSN_SIZE;
-            DATA_TYPE target = program.at(pc);
+            DATA_TYPE target = *reinterpret_cast<DATA_TYPE*>(&program.at(pc)) - 1;
             if (stck.top() == 0)
                 pc = target - 1;
             pc += DATA_SIZE - INSN_SIZE;
@@ -425,41 +490,47 @@ void VirtualMachine::execute(INSN_TYPE opcode) {
             break;
         }
         default: {
-            cout << "Invalid opcode: " << opcode << endl;
+            LOG << "Invalid opcode: " << opcode << endl;
             exit(1);
         }
     }
 }
-void VirtualMachine::save(std::string path) {
-    if (!program.size())
-        return;
-    if (path.empty())
-        return;
+
+bool VirtualMachine::save(std::string path) {
+    if (!program.size() || path.empty())
+        return false;
 
     std::ofstream out(path, std::ios::binary);
     if (!out.good())
-        return;
+        return false;
 
     out.write(reinterpret_cast<char*>(&program.at(0)), program.size());
     out.close();
+    return true;
 }
-void VirtualMachine::load(std::string path) {
+
+bool VirtualMachine::load(std::string path) {
     if (path.empty())
-        return;
+        return false;
 
     std::ifstream in(path, std::ios::binary);
     if (!in.good())
-        return;
+        return false;
 
     in.seekg(0, std::ios::end);
     size_t sz = in.tellg();
     in.seekg(0, std::ios::beg);
+    if (!sz) {
+        in.close();
+        return false;
+    }
 
     program.clear();
     program.resize(sz);
 
     in.read(reinterpret_cast<char*>(&program.at(0)), sz);
     in.close();
+    return true;
 }
 void VirtualMachine::start() {
     running = 1;

@@ -3,9 +3,17 @@
 #define INSN_TYPE   char
 #define INSN_SIZE   (sizeof(char))
 
-#define DATA_TYPE   short
-#define DATA_SIZE   (sizeof(short))
+#define DATA_TYPE   unsigned short
+#define DATA_SIZE   (sizeof(unsigned short))
 
+// disable logging on Release
+#ifndef _DEBUG
+#define LOG        / ## /
+#else
+#define LOG        cout
+#endif
+
+#include <iostream>
 #include <stack>
 #include <vector>
 #include <string>
@@ -28,9 +36,11 @@ protected:
 
     enum OpCode {
         NOP,
-        
+
         PUSH,
         POP,
+
+        LOAD,
 
         EQU,
         NEQU,
@@ -65,12 +75,14 @@ protected:
     };
 
     #define INS(o,a) { o, #o, a }
-    std::vector<Instruction> Instructions = {
+    std::vector<Instruction> instruction_definitions = {
         INS(NOP, 0),
 
         INS(PUSH, 1),
         INS(POP, 0),
         
+        INS(LOAD, 0),
+
         INS(EQU, 0),
         INS(NEQU, 0),
         INS(GT, 0),
@@ -104,8 +116,8 @@ public:
     void translate_to_x64_asm(std::string path, std::string output);
     void decompile(std::string path, std::string output);
     void execute(INSN_TYPE opcode);
-    void save(std::string path);
-    void load(std::string path);
+    bool save(std::string path);
+    bool load(std::string path);
 
     void start();
     void stop();
