@@ -4,17 +4,17 @@
 
 #include "VirtualMachine.h"
 
-void VirtualMachine::compile(std::string path, std::string output) {
+bool VirtualMachine::compile(std::string path, std::string output) {
     if (path.empty() || output.empty())
-        return;
+        return false;
 
     std::ifstream source(path);
     std::ofstream binary(output, std::ios::binary);
     if (!source.good() || !binary.good())
-        return;
+        return false;
 
     // First pass: build list of label names and their locations
-    std::unordered_map<std::string, size_t> label_offsets;
+    std::unordered_map<std::string, DATA_TYPE> label_offsets;
     size_t bytecode_size = 0;
     string line;
     while (getline(source, line)) {
@@ -25,10 +25,10 @@ void VirtualMachine::compile(std::string path, std::string output) {
             // This is a label definition
             std::string label_name = line.substr(0, line.size() - 1);
             if (label_offsets.count(label_name) > 0) {
-                LOG << "Duplicate label name: " << label_name << endl;
-                return;
+                cerr << "Duplicate label name: " << label_name << endl;
+                return false;
             }
-            label_offsets[label_name] = bytecode_size;
+            label_offsets[label_name] = (DATA_TYPE)bytecode_size;
         }
         else {
             // This is an instruction
@@ -49,8 +49,8 @@ void VirtualMachine::compile(std::string path, std::string output) {
             }
 
             if (!found) {
-                LOG << "Invalid opcode: " << opcode_str << endl;
-                return;
+                cerr << "Invalid opcode: " << opcode_str << endl;
+                return false;
             }
         }
     }
@@ -58,14 +58,13 @@ void VirtualMachine::compile(std::string path, std::string output) {
     // Second pass: generate bytecode
     source.clear();
     source.seekg(0);
-    int label_count = 0;
     while (getline(source, line)) {
         if (line.empty() || line[0] == '#' || line.find("#") != std::string::npos)
             continue;
 
         if (line[line.size() - 1] == ':') { // Label definition
             string label_name = line.substr(0, line.size() - 1);
-            label_offsets[label_name] = binary.tellp();
+            label_offsets[label_name] = (DATA_TYPE)binary.tellp();
             continue;
         }
 
@@ -81,8 +80,8 @@ void VirtualMachine::compile(std::string path, std::string output) {
             else { // Label reference
                 string label_name = line.substr(space_pos + 1);
                 if (label_offsets.find(label_name) == label_offsets.end()) {
-                    LOG << "Invalid label name: " << label_name << endl;
-                    return;
+                    cerr << "Invalid label name: " << label_name << endl;
+                    return false;
                 }
                 arg = label_offsets[label_name];
             }
@@ -99,19 +98,20 @@ void VirtualMachine::compile(std::string path, std::string output) {
         }
 
         if (!found) {
-            LOG << "Invalid opcode: " << opcode_str << endl;
-            return;
+            cerr << "Invalid opcode: " << opcode_str << endl;
+            return false;
         }
     }
+    return true;
 }
-void VirtualMachine::decompile(std::string path, std::string output) {
+bool VirtualMachine::decompile(std::string path, std::string output) {
     if (path.empty() || output.empty())
-        return;
+        return false;
 
     std::ifstream in(path);
     std::ofstream out(output, std::ios::binary);
     if (!in.good() || !out.good())
-        return;
+        return false;
 
     INSN_TYPE instr;
     while (in.read(reinterpret_cast<char*>(&instr), INSN_SIZE)) {
@@ -132,6 +132,7 @@ void VirtualMachine::decompile(std::string path, std::string output) {
         if (!found)
             out << "INVALID OPCODE\n";
     }
+    return true;
 }
 
 void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) {
@@ -153,6 +154,9 @@ void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) 
             case PUSH:
                 READ();
                 out << "    movabs $" << value << ", %rax\n";
+                out << "    push %rax\n";
+                break;
+            case LOAD:
                 out << "    push %rax\n";
                 break;
             case POP:
@@ -314,7 +318,7 @@ void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) 
             }
         }
     }
-    #undef READ()
+    #undef READ
 
     // Prepare the data segment
     out << ".section .rodata\n";

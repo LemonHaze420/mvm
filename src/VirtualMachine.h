@@ -112,9 +112,9 @@ protected:
     vector<char> program = {};
 
 public:
-    void compile(std::string path, std::string output);
+    bool compile(std::string path, std::string output);
     void translate_to_x64_asm(std::string path, std::string output);
-    void decompile(std::string path, std::string output);
+    bool decompile(std::string path, std::string output);
     void execute(INSN_TYPE opcode);
     bool save(std::string path);
     bool load(std::string path);
