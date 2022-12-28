@@ -1,0 +1,25 @@
+# Simple script which counts to 100, infinitely.
+
+start:
+
+# r0 = 0;
+PUSH 0
+POP
+
+increment:
+# int tmp = r0 + 1;
+# print(tmp);
+# r0 = tmp;
+LOAD
+PUSH 1
+ADD
+PRINT
+POP
+
+# if(r0 <= 100) goto increment;
+LOAD
+PUSH 100
+LTEQ
+JMPZ increment
+# else goto start;
+JMP start

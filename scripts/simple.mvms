@@ -12,8 +12,9 @@ PUSH 4
 PUSH 4
 # if(v3 == v4) print(1);
 EQU
-JMPZ 26
+JMPZ END
 PRINT
 
+END:
 # exit(0);        
 HALT

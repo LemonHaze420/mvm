@@ -28,6 +28,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="program.s" />
+    <None Include="scripts\count_to_100.mvms" />
+    <None Include="scripts\simple.mvms" />
   </ItemGroup>
 </Project>
