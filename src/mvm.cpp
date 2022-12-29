@@ -1,10 +1,16 @@
+#include "mvm.h"
+
+#ifdef _MSC_VER
+#include <Windows.h>
+#else
+#include <unistd.h>
+#endif
+
 #include <fstream>
 #include <cstdint>
 #include <unordered_map>
 
-#include "VirtualMachine.h"
-
-bool VirtualMachine::compile(std::string path, std::string output) {
+bool mvm::compile(std::string path, std::string output) {
     if (path.empty() || output.empty())
         return false;
 
@@ -104,7 +110,7 @@ bool VirtualMachine::compile(std::string path, std::string output) {
     }
     return true;
 }
-bool VirtualMachine::decompile(std::string path, std::string output) {
+bool mvm::decompile(std::string path, std::string output) {
     if (path.empty() || output.empty())
         return false;
 
@@ -134,8 +140,7 @@ bool VirtualMachine::decompile(std::string path, std::string output) {
     }
     return true;
 }
-
-void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) {
+void mvm::translate_to_x64_asm(std::string path, std::string output) {
     std::ifstream in(path, std::ios::binary);
     std::ofstream out(output);
 
@@ -272,16 +277,20 @@ void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) 
                 out << "    movzb %rax, %al\n";
                 out << "    push %rax\n";
                 break;
-            case JMP: {
-                READ();
-                out << "    jmp .L" << value << endl;
-                break;
-            }
+            case JMP:
+            case JMPNZ:
             case JMPZ: {
                 READ();
-                out << "    pop %rax\n";
-                out << "    cmp $0, %rax\n";
-                out << "    je .L" << value << endl;
+                if (instr == JMP) {
+                    out << "    jmp $0x" << std::hex << value << endl;
+                } else {
+                    out << "    pop %rax\n";
+                    out << "    cmp $0, %rax\n";
+                    if (instr == JMPNZ)
+                        out << "    jne $0x" << std::hex << value << endl;
+                    else
+                        out << "    je $0x" << std::hex << value << endl;
+                }
                 break;
             }
             case HALT: {
@@ -306,10 +315,14 @@ void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) 
                 out << "    push $0x0d\n";
                 out << "    mov $1, %rax\n";
                 out << "    mov $1, %rdi\n";
-                out << "    mov% rsp, %rsi\n";
+                out << "    mov %rsp, %rsi\n";
                 out << "    mov $1, %rdx\n";
                 out << "    syscall\n";
                 out << "    add $8, %rsp\n";
+                break;
+            }
+            case CALL: {
+                READ();
                 break;
             }
             case NOP: {
@@ -327,180 +340,203 @@ void VirtualMachine::translate_to_x64_asm(std::string path, std::string output) 
     out << "\n";
 }
 
-void VirtualMachine::execute(INSN_TYPE opcode) {
-    switch (opcode) {
-        case LOAD: {
-            stck.push(reg);
-            break;
-        }
-        case NOP: {
-            break;
-        }
-        case HALT: {
-            LOG << "HALT\n";
-            running = 0;
-#           ifndef _DEBUG
-                exit(0);
-#           endif
-            break;
-        }
-        case PUSH: {
-            pc += INSN_SIZE;
-            DATA_TYPE value = *reinterpret_cast<DATA_TYPE*>(&program.at(pc));
-            stck.push(value);
-            pc += DATA_SIZE - INSN_SIZE;
-            break;
-        }
-        case POP: {
-            reg = stck.top();
-            stck.pop();
-            break;
-        }
-        case EQU: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a == b ? 1 : 0);
-            break;
-        }
-        case NEQU: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a != b ? 1 : 0);
-            break;
-        }
-        case GT: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a > b ? 1 : 0);
-            break;
-        }
-        case LT: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a < b ? 1 : 0);
-            break;
-        }
-        case GTEQ: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a >= b ? 1 : 0);
-            break;
-        }
-        case LTEQ: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a <= b ? 1 : 0);
-            break;
-        }
-        case XOR: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a ^ b);
-            break;
-        }
-        case OR: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a | b);
-            break;
-        }
-        case MOD: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a % b);
-            break;
-        }
-        case NEG: {
-            DATA_TYPE v = ~stck.top();
-            stck.pop();
-            stck.push(v);
-            break;
-        }
-        case AND: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a & b);
-            break;
-        }
-        case ADD: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a + b);
-            break;
-        }
-        case SUB: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(b - a);
-            break;
-        }
-        case MUL: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(a * b);
-            break;
-        }
-        case DIV: {
-            DATA_TYPE a = stck.top();
-            stck.pop();
-            DATA_TYPE b = stck.top();
-            stck.pop();
-            stck.push(b / a);
-            break;
-        }
-        case JMP: {
-            pc += INSN_SIZE;
-            DATA_TYPE target = *reinterpret_cast<DATA_TYPE*>(&program.at(pc)) - 1;
-            pc = target - 1;
-            pc += DATA_SIZE - INSN_SIZE;
-            break;
-        }
-        case JMPZ: {
-            pc += INSN_SIZE;
-            DATA_TYPE target = *reinterpret_cast<DATA_TYPE*>(&program.at(pc)) - 1;
-            if (stck.top() == 0)
-                pc = target - 1;
-            pc += DATA_SIZE - INSN_SIZE;
-            break;
-        }
-        case PRINT: {
-            cout << "PRINT " << stck.top() << endl;
-            break;
-        }
-        default: {
-            LOG << "Invalid opcode: " << opcode << endl;
-            exit(1);
-        }
-    }
+void __sleep(DATA_TYPE val) {
+#ifdef _MSC_VER
+    Sleep(*reinterpret_cast<int*>(&val));
+#else
+    sleep(*reinterpret_cast<int*>(&val));
+#endif
 }
 
-bool VirtualMachine::save(std::string path) {
+void (*func_table[])(DATA_TYPE val) = {
+    __sleep
+};
+
+void mvm::execute(INSN_TYPE opcode) {
+    try {
+        DATA_TYPE immediate = 0;
+        switch (opcode) {
+            case CALL: {
+                pc += INSN_SIZE;
+                immediate = *reinterpret_cast<DATA_TYPE*>(&program.at(pc));
+                func_table[immediate](stck.top());
+                stck.pop();
+                pc += DATA_SIZE - INSN_SIZE;
+                break;
+            }
+            case LOAD: {
+                stck.push(reg);
+                break;
+            }
+            case NOP: {
+                break;
+            }
+            case HALT: {
+                LOG << "HALT\n";
+                running = 0;
+    #           ifndef _DEBUG
+                    exit(0);
+    #           endif
+                break;
+            }
+            case PUSH: {
+                pc += INSN_SIZE;
+                immediate = *reinterpret_cast<DATA_TYPE*>(&program.at(pc));
+                stck.push(immediate);
+                pc += DATA_SIZE - INSN_SIZE;
+                break;
+            }
+            case POP: {
+                reg = stck.top();
+                stck.pop();
+                break;
+            }
+            case EQU: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a == b ? 1 : 0);
+                break;
+            }
+            case NEQU: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a != b ? 1 : 0);
+                break;
+            }
+            case GT: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a > b ? 1 : 0);
+                break;
+            }
+            case LT: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a < b ? 1 : 0);
+                break;
+            }
+            case GTEQ: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a >= b ? 1 : 0);
+                break;
+            }
+            case LTEQ: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a <= b ? 1 : 0);
+                break;
+            }
+            case XOR: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a ^ b);
+                break;
+            }
+            case OR: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a | b);
+                break;
+            }
+            case MOD: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a % b);
+                break;
+            }
+            case NEG: {
+                DATA_TYPE v = ~stck.top();
+                stck.pop();
+                stck.push(v);
+                break;
+            }
+            case AND: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a & b);
+                break;
+            }
+            case ADD: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a + b);
+                break;
+            }
+            case SUB: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(b - a);
+                break;
+            }
+            case MUL: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(a * b);
+                break;
+            }
+            case DIV: {
+                DATA_TYPE a = stck.top();
+                stck.pop();
+                DATA_TYPE b = stck.top();
+                stck.pop();
+                stck.push(b / a);
+                break;
+            }
+            case JMP:
+            case JMPZ:
+            case JMPNZ: {
+                pc += INSN_SIZE;
+                if (opcode == JMP) {
+                    immediate = *reinterpret_cast<DATA_TYPE*>(&program.at(pc)) - 1;
+                    pc = immediate - 1;
+                } else if (opcode == JMPZ ? stck.top() == 0 : stck.top() != 0) {
+                    immediate = *reinterpret_cast<DATA_TYPE*>(&program.at(pc)) - 1;
+                    pc = immediate - 1;
+                    stck.pop();
+                }
+                pc += DATA_SIZE - INSN_SIZE;
+                break;
+            }
+            case PRINT: {
+                cout << "PRINT " << stck.top() << endl;
+                break;
+            }
+            default: {
+                throw new std::runtime_error("Invalid opcode " + opcode);
+            }
+        }
+    }
+    CATCH
+}
+
+bool mvm::save(std::string path) {
     if (!program.size() || path.empty())
         return false;
 
@@ -512,8 +548,7 @@ bool VirtualMachine::save(std::string path) {
     out.close();
     return true;
 }
-
-bool VirtualMachine::load(std::string path) {
+bool mvm::load(std::string path) {
     if (path.empty())
         return false;
 
@@ -536,14 +571,20 @@ bool VirtualMachine::load(std::string path) {
     in.close();
     return true;
 }
-void VirtualMachine::start() {
+
+
+void mvm::start() {
     running = 1;
 
-    while (running) {
-        execute(program.at(pc));
-        pc += INSN_SIZE;
-    }
+    try {
+        while (running && pc < program.size()) {
+            execute(program.at(pc));
+
+            pc += INSN_SIZE;
+        }
+    } 
+    CATCH
 }
-void VirtualMachine::stop() {
+void mvm::stop() {
     running = 0;
 }

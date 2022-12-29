@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\VirtualMachine.cpp">
+    <ClCompile Include="src\mvm.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\main.cpp">
@@ -23,7 +23,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\VirtualMachine.h">
+    <ClInclude Include="src\mvm.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

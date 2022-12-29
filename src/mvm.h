@@ -6,6 +6,14 @@
 #define DATA_TYPE   unsigned short
 #define DATA_SIZE   (sizeof(unsigned short))
 
+#define CATCH               catch (std::exception& e) {                                          \
+                                cerr << "An exception occurred!\n\n";                             \
+                                cerr << e.what() << endl;                                         \
+                                cerr << "PC: 0x" << std::hex << pc << endl;                       \
+                                cerr << "R0: 0x" << std::hex << reg << endl;                      \
+                                cerr << "program size: 0x" << std::hex << program.size() << endl; \
+                           }                                                                      \
+
 // disable logging on Release
 #ifndef _DEBUG
 #define LOG        / ## /
@@ -20,10 +28,53 @@
 
 using namespace std;
 
-class VirtualMachine {
+enum OpCode {
+    CALL,
+
+    NOP,
+
+    PUSH,
+    POP,
+
+    LOAD,
+
+    EQU,
+    NEQU,
+    GT,
+    GTEQ,
+    LT,
+    LTEQ,
+
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+
+    XOR,
+    OR,
+    MOD,
+    NEG,
+    AND,
+
+    JMP,
+    JMPZ,
+    JMPNZ,
+
+    PRINT,
+
+    HALT,
+};
+
+struct Instruction {
+    OpCode opcode;
+    std::string sz;
+    char num_args;
+};
+
+class mvm {
 public:
-    VirtualMachine() = default;
-    ~VirtualMachine() {
+    mvm() = default;
+    ~mvm() {
         stop();
     }
 
@@ -34,48 +85,10 @@ protected:
     DATA_TYPE pc = 0;
     DATA_TYPE reg = 0;
 
-    enum OpCode {
-        NOP,
-
-        PUSH,
-        POP,
-
-        LOAD,
-
-        EQU,
-        NEQU,
-        GT,
-        GTEQ,
-        LT, 
-        LTEQ,
-
-        ADD,
-        SUB,
-        MUL,
-        DIV,
-
-        XOR,
-        OR, 
-        MOD,
-        NEG,
-        AND,
-
-        JMP,
-        JMPZ,
-
-        PRINT,
-
-        HALT,
-    };
-
-    struct Instruction {
-        OpCode opcode;
-        std::string sz;
-        char num_args;
-    };
-
     #define INS(o,a) { o, #o, a }
     std::vector<Instruction> instruction_definitions = {
+        INS(CALL, 1),
+
         INS(NOP, 0),
 
         INS(PUSH, 1),
@@ -102,6 +115,7 @@ protected:
 
         INS(JMP, 1),
         INS(JMPZ, 1),
+        INS(JMPNZ, 1),
 
         INS(PRINT, 0),
 

@@ -1,10 +1,15 @@
-#include "VirtualMachine.h"
+#include "mvm.h"
 
 int main(int argc, char **argp) {
-    if (argc < 2)
+    if (argc < 2) {
+        cout << "mvm - Minimal Virtual Machine\n";
+        cout << "\n\tmvm -c <source> <output>\t-\tCompile source to output\n";
+        cout << "\tmvm -d <binary> <output>\t-\tDecompile binary to output\n";
+        cout << "\tmvm <binary>\t\t\t-\tExecute source\n\n";
         return -1;
+    }
 
-    VirtualMachine vm;
+    mvm vm;
     if (strstr(argp[1], "-t")) {
         vm.compile("scripts\\count_to_100.mvms", "bin\\count_to_100.mvmb");
         vm.translate_to_x64_asm("bin\\count_to_100.mvmb", "bin\\count_to_100.x64.s");
@@ -24,9 +29,9 @@ int main(int argc, char **argp) {
         std::string out = argp[3];
 
         if (strstr(argp[1], "-c"))
-            vm.compile(in, out);
+            res = vm.compile(in, out);
         else
-            vm.decompile(in, out);
+            res = vm.decompile(in, out);
     } else {
         res = vm.load(in);
         if (res)
