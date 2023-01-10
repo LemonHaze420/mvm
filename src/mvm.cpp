@@ -161,43 +161,38 @@ void mvm::translate_to_x64_asm(std::string path, std::string output) {
                 out << "    movabs $" << value << ", %rax\n";
                 out << "    push %rax\n";
                 break;
-            case LOAD:
-                out << "    push %rax\n";
-                break;
             case POP:
                 out << "    pop %rax\n";
                 break;
-            case ADD: {
-                out << "    pop %rbx\n";
-                out << "    pop %rax\n";
-                out << "    add %rbx, %rax\n";
+            case LOAD:
                 out << "    push %rax\n";
                 break;
-            }
+            case ADD: 
             case SUB:
+            {
                 out << "    pop %rbx\n";
                 out << "    pop %rax\n";
-                out << "    sub %rax, %rbx\n";
-                out << "    push %rbx\n";
-                break;
-            case XOR: {
-                out << "    pop %rax\n";
-                out << "    pop %rbx\n";
-                out << "    xor %rax, %rbx\n";
-                out << "    push %rax\n";
-                break;
-            }
-            case AND: {
-                out << "    pop %rax\n";
-                out << "    pop %rbx\n";
-                out << "    and %rax, %rbx\n";
-                out << "    push %rax\n";
+                if (instr == ADD) {
+                    out << "    add %rbx, %rax\n";
+                    out << "    push %rax\n";
+                } else if (instr == SUB) {
+                    out << "    sub %rax, %rbx\n";
+                    out << "    push %rbx\n";
+                }
                 break;
             }
-            case OR: {
+            case XOR: 
+            case AND:
+            case OR:
+            {
                 out << "    pop %rax\n";
                 out << "    pop %rbx\n";
-                out << "    or %rax, %rbx\n";
+                if (instr == XOR)
+                    out << "    xor %rax, %rbx\n";
+                else if (instr == AND)
+                    out << "    and %rax, %rbx\n";
+                else if (instr == OR)
+                    out << "    or %rax, %rbx\n";
                 out << "    push %rax\n";
                 break;
             }
@@ -228,18 +223,14 @@ void mvm::translate_to_x64_asm(std::string path, std::string output) {
                 out << "    push %rdx\n";
                 break;
             case EQU:
-                out << "    pop %rax\n";
-                out << "    pop %rbx\n";
-                out << "    cmp %rax, %rbx\n";
-                out << "    sete %al\n";
-                out << "    movsx %al, %rax\n";
-                out << "    push %rax\n";
-                break;
             case NEQU:
                 out << "    pop %rax\n";
                 out << "    pop %rbx\n";
                 out << "    cmp %rax, %rbx\n";
-                out << "    setne %al\n";
+                if (instr == EQU)
+                    out << "    sete %al\n";
+                else if (instr == NEQU)
+                    out << "    setne %al\n";
                 out << "    movsx %al, %rax\n";
                 out << "    push %rax\n";
                 break;
@@ -262,21 +253,18 @@ void mvm::translate_to_x64_asm(std::string path, std::string output) {
                 break;
             }
             case GT:
+            case GTEQ: {
                 out << "    pop %rbx\n";
                 out << "    pop %rax\n";
                 out << "    cmp %rax, %rbx\n";
-                out << "    setg %al\n";
+                if (instr == GT)
+                    out << "    setg %al\n";
+                else if (instr == GTEQ)
+                    out << "    setge %al\n";
                 out << "    movzb %rax, %al\n";
                 out << "    push %rax\n";
                 break;
-            case GTEQ:
-                out << "    pop %rbx\n";
-                out << "    pop %rax\n";
-                out << "    cmp %rax, %rbx\n";
-                out << "    setge %al\n";
-                out << "    movzb %rax, %al\n";
-                out << "    push %rax\n";
-                break;
+            }
             case JMP:
             case JMPNZ:
             case JMPZ: {
